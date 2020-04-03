@@ -1,0 +1,245 @@
+---
+title: "R Notebook"
+output:
+  word_document: default
+  html_notebook: default
+---
+
+This is an [R Markdown](http://rmarkdown.rstudio.com) Notebook. When you execute code within the notebook, the results appear beneath the code. 
+
+Try executing this chunk by clicking the *Run* button within the chunk or by placing your cursor inside it and pressing *Ctrl+Shift+Enter*. 
+
+```{r}
+library(tidyverse)
+library(tidymodels)
+library(plotly)
+library(skimr)
+```
+
+```{r}
+dfbOrg<-read_csv("assignment2BikeShare.csv")
+```
+
+
+```{r}
+skim(dfbOrg)
+```
+
+
+```{r}
+#1a (i)
+dfbOrg <- dfbOrg %>% 
+  mutate(COUNT= CASUAL+REGISTERED)
+
+#1a (ii)
+dfbOrg <- dfbOrg %>% 
+  mutate(MONTH= months(DATE))
+dfbOrg
+
+```
+
+
+```{r}
+#1b
+
+dfbStd <- dfbOrg
+dfbStd$TEMP <- scale(dfbStd$TEMP)
+dfbStd$ATEMP <- scale(dfbStd$ATEMP)
+dfbStd$HUMIDITY <- scale(dfbStd$HUMIDITY)
+dfbStd$WINDSPEED <- scale(dfbStd$WINDSPEED)
+dfbStd
+
+```
+
+
+```{r}
+#2
+fitAll <- lm(formula= COUNT~.,data=dfbStd)
+summary(fitAll)
+```
+
+
+```{r}
+#3a
+dfbOrg <- dfbOrg %>%
+  mutate(BADWEATHER = ifelse(WEATHERSIT>2, "YES", "NO"))
+
+dfbOrg
+```
+
+
+```{r}
+#3b
+dfbOrg %>% 
+  ggplot(aes(x=ATEMP,y=COUNT,color=BADWEATHER))+
+  geom_point()
+```
+
+
+```{r}
+#3c i
+dfbOrg %>% 
+  ggplot(aes(x=ATEMP,y=CASUAL,color=BADWEATHER))+
+  geom_point()
+
+#3c ii
+dfbOrg %>% 
+  ggplot(aes(x=ATEMP,y=REGISTERED,color=BADWEATHER))+
+  geom_point()
+
+#3c iV
+dfbOrg %>% 
+  ggplot(aes(x=ATEMP,y=COUNT))+
+  geom_point()+
+  geom_smooth()
+
+```
+```{r}
+#4
+fit <- lm(formula= COUNT~MONTH+WEEKDAY +BADWEATHER + TEMP+ ATEMP+ HUMIDITY,data=dfbOrg)
+summary(fit)
+```
+
+
+```{r}
+#5
+plot(fit)
+```
+
+```{r}
+#autocorrelation
+dfbOrg %>% 
+  modelr::add_residuals(fit,var="resid") %>% 
+  ggplot(aes(DATE,resid))+
+  geom_line()
+```
+
+
+```{r}
+#multicollinearity
+library(car)
+car::vif(fit)
+```
+```{r}
+#correcting
+fitCorrected <- lm(formula= COUNT~MONTH+WEEKDAY +BADWEATHER + ATEMP+ HUMIDITY,data=dfbOrg)
+summary(fitCorrected)
+
+```
+```{r}
+plot(fitCorrected)
+dfbOrg %>% 
+  modelr::add_residuals(fitCorrected,var="resid") %>% 
+  ggplot(aes(DATE,resid))+
+  geom_line()
+car::vif(fitCorrected)
+```
+
+```{r}
+#6a
+fitBad <- lm(formula= COUNT~BADWEATHER,data=dfbOrg)
+summary(fitBad)
+```
+
+
+
+
+```{r}
+#6c
+fitnewmodel <- lm(formula= COUNT~BADWEATHER+WEEKDAY+BADWEATHER * WEEKDAY,data=dfbOrg)
+summary(fitnewmodel)
+```
+
+
+
+```{r}
+#7a b
+
+set.seed(333)
+dfbTrain <- dfbOrg %>% dplyr::sample_frac (0.8)
+dfbTest <-dplyr:: setdiff (dfbOrg,dfbTrain)
+
+```
+
+
+
+```{r}
+#7c
+fitOrg<- lm(formula= COUNT~MONTH+WEEKDAY +BADWEATHER + ATEMP+ HUMIDITY,data=dfbTrain)
+summary(fitOrg)
+tidy(fitOrg)
+```
+
+```{r}
+fitNew<- lm(formula= COUNT~MONTH+WEEKDAY +BADWEATHER + ATEMP+ HUMIDITY+WINDSPEED,data=dfbTrain)
+summary(fitNew)
+tidy(fitNew)
+```
+
+
+```{r}
+resultsOrg <- dfbTest %>%
+  			mutate(predictedCOUNT = predict(fitOrg, dfbTest))
+resultsOrg
+performance <- metric_set(rmse, mae)
+performance(resultsOrg,truth=COUNT,estimate=predictedCOUNT)
+```
+
+
+```{r}
+resultsNew <- dfbTest %>%
+  			mutate(predictedCOUNT = predict(fitNew, dfbTest))
+resultsNew
+performance <- metric_set(rmse, mae)
+performance(resultsNew,truth=COUNT,estimate=predictedCOUNT)
+```
+
+
+```{r}
+#8
+library(lubridate)
+dfbOrgnew <- dfbOrg %>% mutate(YEAR=year(DATE))
+dfbtimeTrain <- dfbOrgnew %>% 
+  filter(YEAR=="2011")
+
+dfbtimeTest <- dfbOrgnew %>% 
+  filter(YEAR=="2012")
+
+```
+
+
+```{r}
+dfbOrgnew
+```
+
+
+```{r}
+fitTimeOrg<- lm(formula= COUNT~MONTH+WEEKDAY +BADWEATHER + ATEMP+ HUMIDITY,data=dfbtimeTrain)
+summary(fitTimeOrg)
+tidy(fitTimeOrg)
+resultsTimeOrg <- dfbtimeTest %>%
+  			mutate(predictedCOUNT = predict(fitTimeOrg, dfbtimeTest))
+resultsTimeOrg
+performance <- metric_set(rmse, mae)
+performance(resultsTimeOrg,truth=COUNT,estimate=predictedCOUNT)
+```
+
+
+```{r}
+
+dfb2Train <- dfbOrg %>% 
+  filter(DATE<="2012-06-30")
+dfb2Train
+dfb2Test <- dfbOrg %>% 
+  filter(DATE>"2012-06-30")
+dfb2Test
+```
+```{r}
+fitSplitTimeOrg<- lm(formula= COUNT~MONTH+WEEKDAY +BADWEATHER + ATEMP+ HUMIDITY,data=dfb2Train)
+resultsTimeNewOrg <- dfb2Test %>%
+  			mutate(predictedCOUNT = predict(fitSplitTimeOrg, dfb2Test))
+resultsTimeNewOrg
+performance <- metric_set(rmse, mae)
+performance(resultsTimeNewOrg,truth=COUNT,estimate=predictedCOUNT)
+```
+
